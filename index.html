@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Web App Gila</title>
+    <style>
+        /* CSS Sederhana Biar Keren Dikit */
+        body { font-family: sans-serif; background: #222; color: #0f0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: #333; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,255,0,0.5); }
+        input[type="text"], textarea { 
+            width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #0f0; 
+            background: #111; color: #0f0; box-sizing: border-box; 
+        }
+        button { 
+            background: #0f0; color: #222; padding: 10px 15px; border: none; 
+            cursor: pointer; font-weight: bold; transition: background 0.3s;
+        }
+        button:hover { background: #0c0; }
+        #loading { display: none; color: yellow; margin-top: 10px; }
+        #resultOutput { 
+            white-space: pre-wrap; background: #111; padding: 15px; border: 1px dashed #0f0;
+            min-height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI JANCUK Generator 🧠</h1>
+        <p>Tanyakan hal paling bangsat ke AI, Cok!</p>
+        
+        <input type="text" id="promptInput" placeholder="Contoh: 'Buatin puisi tentang server yang sering down'" required>
+        <button id="submitButton" onclick="kirimPrompt()">Kirim Prompt</button>
+        
+        <div id="loading">Memproses... Tunggu sebentar anjir...</div>
+        
+        <hr style="border-color: #0f0; margin-top: 20px;">
+        
+        <h2>Hasil Respon AI:</h2>
+        <pre id="resultOutput">...</pre>
+    </div>
+
+    <script>
+        // *** PENTING: GANTI INI NANTI SETELAH BACKEND DEPLOY KE RENDER ***
+        // Ini default buat testing local, tapi harus diganti URL RENDER
+        const BACKEND_BASE_URL = 'http://localhost:3001'; 
+        
+        const promptInput = document.getElementById('promptInput');
+        const submitButton = document.getElementById('submitButton');
+        const loadingDiv = document.getElementById('loading');
+        const resultOutput = document.getElementById('resultOutput');
+
+        async function kirimPrompt() {
+            const prompt = promptInput.value.trim();
+            if (prompt === '') {
+                alert('Tolong isi promptnya, Bro!');
+                return;
+            }
+
+            // UI Feedback: Loading
+            resultOutput.textContent = '';
+            submitButton.disabled = true;
+            loadingDiv.style.display = 'block';
+
+            try {
+                const response = await fetch(`${BACKEND_BASE_URL}/api/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultOutput.textContent = data.result;
+                } else {
+                    // Tampilkan error dari Backend
+                    resultOutput.textContent = `[ERROR BANGSAT] ${data.error || 'Terjadi kesalahan tidak terduga.'}`;
+                }
+
+            } catch (error) {
+                resultOutput.textContent = `[ERROR JARINGAN] Gagal konek ke server: ${error.message}`;
+            } finally {
+                // UI Feedback: Selesai
+                submitButton.disabled = false;
+                loadingDiv.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

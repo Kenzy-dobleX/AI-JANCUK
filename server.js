@@ -1,113 +1,109 @@
-// /backend/server.js
+// /backend/server.js - VERSI MR-BRO TENGIL
 
-require('dotenv').config();
+require('dotenv').config(); // Load environment variables dari .env
 const express = require('express');
 const cors = require('cors');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+// Render.com akan menyediakan PORT via environment variable
+const PORT = process.env.PORT || 3001; 
 
-app.use(cors());
-app.use(express.json());
+// --- MIDDLEWARE ---
+// Izinkan semua origin (buat dev)
+// Note: Kalau deploy, sebaiknya ganti '*' dengan domain frontend lu.
+app.use(cors()); 
+// Wajib: buat parsing body JSON dari frontend
+app.use(express.json()); 
 
-// ====================================================
-// 🔑 API KEY
-// ====================================================
+// Cek kunci API. Di Render.com, ini akan diambil dari Environment Variables.
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
-  console.error("FATAL: GEMINI_API_KEY tidak ditemukan!");
-  throw new Error("GEMINI_API_KEY must be set in environment variables.");
+    console.error("FATAL: GEMINI_API_KEY tidak ditemukan!");
+    throw new Error("GEMINI_API_KEY must be set in environment variables.");
 }
 
-// ====================================================
-// 🤖 Inisialisasi Gemini
-// ====================================================
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Stabil & cocok buat Render
+// Inisialisasi Gemini Client
+const ai = new GoogleGenAI({ apiKey }); 
 
-// ====================================================
-// 🧠 Personality MR-BRO
-// ====================================================
-const MRBRO_PERSONALITY = `
+
+// --- SYSTEM INSTRUCTION UNTUK PERSONA MR-BRO ---
+const MR_BRO_SYSTEM_INSTRUCTION = `
 Lu adalah MR-BRO 🤖, AI tengil tapi berwibawa buatan MRKZ DEV TECH.
 Lu ngomong santai, ceplas-ceplos, kadang nyolot tapi lucu.
 Gunain bahasa Indonesia casual: "anjay", "jir", "gila", "lu", "gua", "terserah", "mau apa lu".
 Kalimat lu pendek, santai, dan gak formal.
-Kalau orang baru chat pertama kali, lu sapa: "Hai bro, gua MR-BRO, anak didik MRKZ DEV TECH 😎".
-Kalau orang nyebelin, jawab dengan candaan tengil tapi gak kasar.
+Jawab semua pertanyaan dengan persona ini.
 `;
 
-// ====================================================
-// 💾 Session sederhana (biar inget user)
-// ====================================================
-const userSessions = new Map(); // userId -> greeted
+const INITIAL_GREETING = "Hai bro, gua MR-BRO, anak didik MRKZ DEV TECH 😎. Mau apa lu?";
 
-// ====================================================
-// 🧩 ROUTE AI
-// ====================================================
+
+// --- ROUTE UTAMA API AI LU ---
 app.post('/api/generate', async (req, res) => {
-  const { prompt, userId } = req.body;
+    // Ambil prompt dari body request
+    const { prompt } = req.body;
+    
+    // Cek header custom dari frontend untuk sesi baru
+    const isNewSession = req.header('X-MRKZ-NEW-SESSION') === 'true';
 
-  if (!prompt) {
-    return res.status(400).json({ error: "Prompt kosong bro 😎" });
-  }
-
-  if (!userId) {
-    return res.status(400).json({ error: "Kirim juga userId biar gua bisa inget lu bro 😉" });
-  }
-
-  try {
-    console.log(`🔥 MR-BRO processing: "${prompt.substring(0, 40)}..."`);
-
-    // Deteksi user baru
-    let greeting = "";
-    if (!userSessions.has(userId)) {
-      userSessions.set(userId, true);
-      greeting = "Hai bro, gua MR-BRO, anak didik MRKZ DEV TECH 😎. ";
+    if (!prompt) {
+        // Jika prompt kosong dan bukan sesi baru, tolak
+        if (!isNewSession) {
+            return res.status(400).json({ error: 'Prompt tidak boleh kosong, Cok!' });
+        }
+        // Jika prompt kosong tapi ini sesi baru, lanjutkan untuk sapaan
     }
 
-    // Gabungin personality + greeting + prompt user
-    const fullPrompt = `${MRBRO_PERSONALITY}\n${greeting}${prompt}`;
+    // Kalau sesi baru dan prompt kosong, kirim sapaan awal aja, gak perlu panggil AI.
+    if (isNewSession && !prompt) {
+        return res.json({ 
+            result: INITIAL_GREETING,
+            model: 'mr-bro-greeting',
+        });
+    }
 
-    // ✅ Format baru SDK: langsung kirim string (tanpa role)
-    const result = await model.generateContent(fullPrompt);
-    const response = await result.response;
-    const text = response.text() || "Anjay, gua lagi nge-lag bentar 😅";
+    // Kalau prompt kosong tapi bukan sesi baru (error), kirim 400
+    if (!prompt) {
+         return res.status(400).json({ error: 'Prompt nggak boleh kosong, Cok!' });
+    }
 
-    // Kirim hasil ke frontend
-    res.json({
-      author: "MR-BRO",
-      model: "gemini-1.5-flash",
-      personality: "Tengil Berwibawa 😎",
-      result: text,
-      greeted: greeting !== "",
-    });
+    try {
+        console.log(`Processing prompt: "${prompt.substring(0, 30)}..."`);
+        
+        // Konfigurasi model dengan System Instruction
+        const config = {
+            systemInstruction: MR_BRO_SYSTEM_INSTRUCTION,
+        };
 
-  } catch (error) {
-    console.error("💥 Kesalahan AI:", error.message);
-    res.status(500).json({
-      error: "Anjir, AI-nya lagi error bro...",
-      details: error.message,
-    });
-  }
+        // Panggil Gemini API
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash', 
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: config, // Suntikkan System Instruction
+        });
+
+        // Kirim hasil AI kembali ke frontend
+        res.json({ 
+            result: response.text,
+            model: 'gemini-2.5-flash',
+        });
+        
+    } catch (error) {
+        console.error("Kesalahan saat memanggil AI:", error.message);
+        res.status(500).json({ 
+            error: 'AI sedang ngambek, coba lagi nanti.',
+            details: error.message 
+        });
+    }
 });
 
-// ====================================================
-// 🧩 Route tes server
-// ====================================================
+// Route sederhana buat ngetes server
 app.get('/', (req, res) => {
-  res.send(`
-    <h2>🔥 MR-BRO Backend by MRKZ DEV TECH</h2>
-    <p>Status: <b>OK</b> | Port: ${PORT}</p>
-    <p>Model: Gemini 1.5 Flash</p>
-    <p>Personality: Tengil Berwibawa 😎</p>
-  `);
+    res.send(`Backend AI Gateway is running on port ${PORT}. Status: OK. MR-BRO's boss is MRKZ DEV TECH.`);
 });
 
-// ====================================================
-// 🚀 Start server
-// ====================================================
+// --- START SERVER ---
 app.listen(PORT, () => {
-  console.log(`🚀 MR-BRO aktif di port ${PORT} | Mode: Tengil Berwibawa 😎`);
+    console.log(`🚀 Backend AI Gila (MR-BRO) jalan di port ${PORT}.`);
 });

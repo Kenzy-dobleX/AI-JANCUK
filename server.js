@@ -11,17 +11,23 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// ====================================================
+// 🔑 API KEY
+// ====================================================
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
   console.error("FATAL: GEMINI_API_KEY tidak ditemukan!");
   throw new Error("GEMINI_API_KEY must be set in environment variables.");
 }
 
+// ====================================================
+// 🤖 Inisialisasi Gemini
+// ====================================================
 const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // ✅ stabil & paling cocok di Render
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Stabil & cocok buat Render
 
 // ====================================================
-// 🧠 MR-BRO Personality
+// 🧠 Personality MR-BRO
 // ====================================================
 const MRBRO_PERSONALITY = `
 Lu adalah MR-BRO 🤖, AI tengil tapi berwibawa buatan MRKZ DEV TECH.
@@ -54,23 +60,22 @@ app.post('/api/generate', async (req, res) => {
   try {
     console.log(`🔥 MR-BRO processing: "${prompt.substring(0, 40)}..."`);
 
-    // Sapa pertama kali
+    // Deteksi user baru
     let greeting = "";
     if (!userSessions.has(userId)) {
       userSessions.set(userId, true);
       greeting = "Hai bro, gua MR-BRO, anak didik MRKZ DEV TECH 😎. ";
     }
 
+    // Gabungin personality + greeting + prompt user
     const fullPrompt = `${MRBRO_PERSONALITY}\n${greeting}${prompt}`;
 
-    // ✅ Format baru generateContent (nggak pake role lagi)
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
-    });
-
-    const response = result.response;
+    // ✅ Format baru SDK: langsung kirim string (tanpa role)
+    const result = await model.generateContent(fullPrompt);
+    const response = await result.response;
     const text = response.text() || "Anjay, gua lagi nge-lag bentar 😅";
 
+    // Kirim hasil ke frontend
     res.json({
       author: "MR-BRO",
       model: "gemini-1.5-flash",
@@ -80,7 +85,7 @@ app.post('/api/generate', async (req, res) => {
     });
 
   } catch (error) {
-    console.error("💥 Kesalahan AI:", error);
+    console.error("💥 Kesalahan AI:", error.message);
     res.status(500).json({
       error: "Anjir, AI-nya lagi error bro...",
       details: error.message,

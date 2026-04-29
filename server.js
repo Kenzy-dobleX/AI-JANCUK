@@ -28,7 +28,6 @@ if (!apiKey) {
     throw new Error("GEMINI_API_KEY must be set in environment variables.");
 }
 const ai = new GoogleGenAI({ apiKey }); 
-
 // --- SYSTEM PERSONA ---
 const MR_BRO_SYSTEM_INSTRUCTION = `
 Kamu adalah DARKLINGHT AI.
@@ -41,6 +40,7 @@ Aturan:
 
 Gaya: santai, sedikit edgy, tapi tetap sopan
 `;
+
 const INITIAL_GREETING = "Welcome, I'm Darklinght, Created By MRKZ DEV-TEC.";
 
 // --- JWT AUTH ---
